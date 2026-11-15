@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuroForge Dashboard</title>
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #121722; --panel2: #171d2a; --border: #222a3a;
+    --text: #e6e9f0; --muted: #8a93a6; --accent: #7c9cff; --accent2: #ff8a5c;
+    --good: #4ade80; --warn: #fbbf24; --grid: #1f2736;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #11172400, #0f1420); position: sticky; top: 0; backdrop-filter: blur(8px); z-index: 2; }
+  header h1 { margin: 0; font-size: 18px; letter-spacing: .3px; }
+  header h1 span { color: var(--accent); }
+  .status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--good); box-shadow: 0 0 10px var(--good); animation: pulse 1.4s infinite; }
+  .dot.done { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: none; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  main { padding: 20px 24px 60px; display: grid; gap: 18px; max-width: 1400px; margin: 0 auto; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .tile .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .8px; }
+  .tile .v { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tile .v small { font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; display: flex; justify-content: space-between; align-items: center; }
+  .card h2 .legend { display: flex; gap: 12px; text-transform: none; letter-spacing: 0; font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+  canvas { width: 100%; height: 260px; display: block; }
+  canvas.small { height: 150px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=text], textarea, select { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font: inherit; }
+  textarea { width: 100%; min-height: 70px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  input[type=range] { accent-color: var(--accent); }
+  button { background: var(--accent); color: #0b0e14; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  pre.out { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; margin: 10px 0 0; min-height: 60px; max-height: 320px; overflow: auto; }
+  .samples { display: grid; gap: 8px; max-height: 420px; overflow: auto; }
+  .sample { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .sample .meta { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+  .sample pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+  .muted { color: var(--muted); }
+  .cfg { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 12px; }
+  .cfg b { color: var(--text); font-weight: 500; }
+  #attnWrap { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  #attnCanvas { width: auto; height: auto; max-width: 100%; image-rendering: pixelated; border-radius: 6px; border: 1px solid var(--border); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Neuro<span>Forge</span> &nbsp;<span class="muted" id="title" style="font-weight:400;font-size:14px"></span></h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">connecting…</span></div>
+</header>
+<main>
+  <div class="cfg" id="cfg"></div>
+
+  <div class="tiles">
+    <div class="tile"><div class="k">Step</div><div class="v" id="tStep">–</div></div>
+    <div class="tile"><div class="k">Train loss</div><div class="v" id="tLoss">–</div></div>
+    <div class="tile"><div class="k">Val loss</div><div class="v" id="tVal">–</div></div>
+    <div class="tile"><div class="k">Accuracy</div><div class="v" id="tAcc">–</div></div>
+    <div class="tile"><div class="k">Learning rate</div><div class="v" id="tLr">–</div></div>
+    <div class="tile"><div class="k">Throughput</div><div class="v" id="tRate">–</div></div>
+    <div class="tile"><div class="k">Elapsed</div><div class="v" id="tTime">–</div></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>Loss <span class="legend"><span><i style="background:var(--accent)"></i>train</span><span><i style="background:var(--accent2)"></i>val</span><label style="margin-left:8px"><input type="checkbox" id="logScale" checked> log y</label></span></h2>
+      <canvas id="lossChart"></canvas>
+    </div>
+    <div style="display:grid;gap:18px">
+      <div class="card"><h2>Learning rate</h2><canvas id="lrChart" class="small"></canvas></div>
+      <div class="card"><h2>Accuracy / grad norm</h2><canvas id="auxChart" class="small"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card" id="genCard">
+      <h2>Generation playground</h2>
+      <textarea id="prompt" placeholder="Type a prompt…"></textarea>
+      <div class="row" style="margin-top:8px">
+        <label>tokens <input type="range" id="genTokens" min="1" max="500" value="120"> <span id="genTokensV">120</span></label>
+        <label>temperature <input type="range" id="genTemp" min="0.1" max="2" step="0.05" value="0.8"> <span id="genTempV">0.80</span></label>
+        <button id="genBtn">Generate</button>
+        <span class="muted" id="genMeta"></span>
+      </div>
+      <pre class="out" id="genOut"></pre>
+    </div>
+    <div class="card">
+      <h2>Samples during training</h2>
+      <div class="samples" id="samples"><span class="muted">No samples yet.</span></div>
+    </div>
+  </div>
+
+  <div class="card" id="attnCard">
+    <h2>Attention heatmap <span class="legend">rows = query token, columns = key token</span></h2>
+    <div class="row">
+      <input type="text" id="attnPrompt" placeholder="text to inspect" style="min-width:260px">
+      <select id="attnLayer"></select>
+      <select id="attnHead"></select>
+      <button id="attnBtn">Inspect</button>
+    </div>
+    <div id="attnWrap" style="margin-top:12px">
+      <canvas id="attnCanvas" width="10" height="10"></canvas>
+      <div id="attnTokens" class="muted" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const fmt = (v, d = 4) => (v === null || v === undefined || Number.isNaN(v)) ? '–' : (Math.abs(v) < 1e-3 && v !== 0 ? v.toExponential(2) : (+v).toFixed(d));
+  const fmtTime = s => { s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60; return (h ? h + 'h ' : '') + (m ? m + 'm ' : '') + sec + 's'; };
+  let attnData = null;
+
+  // ---------------------------------------------------------- chart drawing
+  function setupCanvas(c) {
+    const dpr = window.devicePixelRatio || 1;
+    const r = c.getBoundingClientRect();
+    if (c.width !== Math.round(r.width * dpr) || c.height !== Math.round(r.height * dpr)) {
+      c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+    }
+    const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: r.width, h: r.height };
+  }
+  function drawLines(canvas, series, opts = {}) {
+    const { ctx, w, h } = setupCanvas(canvas);
+    ctx.clearRect(0, 0, w, h);
+    const pad = { l: 48, r: 12, t: 10, b: 24 };
+    const pts = series.flatMap(s => s.data);
+    if (!pts.length) { ctx.fillStyle = '#8a93a6'; ctx.fillText('waiting for data…', pad.l, h / 2); return; }
+    const log = !!opts.log;
+    const tx = v => log ? Math.log10(Math.max(v, 1e-9)) : v;
+    let xmin = Math.min(...pts.map(p => p[0])), xmax = Math.max(...pts.map(p => p[0]));
+    let ymin = Math.min(...pts.map(p => tx(p[1]))), ymax = Math.max(...pts.map(p => tx(p[1])));
+    if (xmax === xmin) xmax = xmin + 1;
+    if (ymax === ymin) { ymax += 1; ymin -= 1; }
+    const yr = ymax - ymin; ymin -= yr * .05; ymax += yr * .05;
+    const X = x => pad.l + (x - xmin) / (xmax - xmin) * (w - pad.l - pad.r);
+    const Y = y => pad.t + (1 - (tx(y) - ymin) / (ymax - ymin)) * (h - pad.t - pad.b);
+    // grid
+    ctx.strokeStyle = '#1f2736'; ctx.lineWidth = 1; ctx.fillStyle = '#8a93a6'; ctx.font = '11px ui-sans-serif, system-ui';
+    for (let i = 0; i <= 4; i++) {
+      const yv = ymin + (ymax - ymin) * i / 4; const yy = pad.t + (1 - i / 4) * (h - pad.t - pad.b);
+      ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(w - pad.r, yy); ctx.stroke();
+      const label = log ? Math.pow(10, yv) : yv;
+      ctx.textAlign = 'right'; ctx.fillText(fmt(label, label >= 10 ? 0 : 2), pad.l - 6, yy + 4);
+    }
+    for (let i = 0; i <= 5; i++) {
+      const xv = xmin + (xmax - xmin) * i / 5; ctx.textAlign = 'center';
+      ctx.fillText(Math.round(xv), X(xv), h - 7);
+    }
+    for (const s of series) {
+      if (!s.data.length) continue;
+      ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 1.6; ctx.beginPath();
+      s.data.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])));
+      ctx.stroke();
+      if (s.dots) { ctx.fillStyle = s.color; for (const p of s.data) { ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 2.5, 0, 7); ctx.fill(); } }
+    }
+  }
+  function smooth(data, k) {
+    if (data.length < k * 2) return data;
+    const out = []; let acc = 0; const q = [];
+    for (const p of data) { q.push(p[1]); acc += p[1]; if (q.length > k) acc -= q.shift(); out.push([p[0], acc / q.length]); }
+    return out;
+  }
+
+  // ---------------------------------------------------------- state polling
+  async function poll() {
+    try {
+      const s = await (await fetch('/api/state')).json();
+      render(s);
+    } catch (e) { $('statusText').textContent = 'disconnected'; $('dot').style.background = '#ef4444'; }
+    setTimeout(poll, 1000);
+  }
+  function render(s) {
+    const m = s.metrics, last = m[m.length - 1];
+    $('title').textContent = s.config.title && s.config.title !== 'NeuroForge' ? s.config.title : '';
+    $('statusText').textContent = s.status === 'finished' ? 'finished' : 'training';
+    $('dot').className = 'dot' + (s.status === 'finished' ? ' done' : '');
+    $('cfg').innerHTML = Object.entries(s.config).filter(([k]) => k !== 'title').map(([k, v]) => `<span>${k}: <b>${v}</b></span>`).join('');
+    if (last) {
+      $('tStep').textContent = last.step;
+      $('tLoss').textContent = fmt(last.loss);
+      const lastVal = [...m].reverse().find(r => r.val_loss != null);
+      $('tVal').textContent = lastVal ? fmt(lastVal.val_loss) : '–';
+      const lastAcc = [...m].reverse().find(r => r.accuracy != null);
+      $('tAcc').innerHTML = lastAcc ? (lastAcc.accuracy * 100).toFixed(1) + '<small>%</small>' : '–';
+      $('tLr').textContent = last.lr != null ? (+last.lr).toExponential(2) : '–';
+      const k = Math.min(20, m.length - 1);
+      if (k > 0) { const a = m[m.length - 1 - k], b = last; const r = (b.step - a.step) / Math.max(b.time - a.time, 1e-6); $('tRate').innerHTML = r.toFixed(1) + '<small>it/s</small>'; }
+    }
+    $('tTime').textContent = fmtTime(s.elapsed);
+    const log = $('logScale').checked;
+    const train = m.filter(r => r.loss != null).map(r => [r.step, r.loss]);
+    drawLines($('lossChart'), [
+      { data: train, color: 'rgba(124,156,255,.35)', width: 1 },
+      { data: smooth(train, 10), color: '#7c9cff', width: 2 },
+      { data: m.filter(r => r.val_loss != null).map(r => [r.step, r.val_loss]), color: '#ff8a5c', width: 2, dots: true },
+    ], { log });
+    drawLines($('lrChart'), [{ data: m.filter(r => r.lr != null).map(r => [r.step, r.lr]), color: '#fbbf24' }]);
+    drawLines($('auxChart'), [
+      { data: m.filter(r => r.accuracy != null).map(r => [r.step, r.accuracy]), color: '#4ade80', dots: true },
+      { data: m.filter(r => r.grad_norm != null).map(r => [r.step, r.grad_norm]), color: 'rgba(230,233,240,.5)', width: 1 },
+    ]);
+    const sm = $('samples');
+    if (s.samples.length) sm.innerHTML = [...s.samples].reverse().map(x => `<div class="sample"><div class="meta">step ${x.step} · ${x.label}</div><pre>${esc(x.text)}</pre></div>`).join('');
+    $('genCard').classList.toggle('hidden', !s.has_generate);
+    $('attnCard').classList.toggle('hidden', !s.has_attention);
+  }
+  const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  // ---------------------------------------------------------- generation
+  $('genTokens').oninput = e => $('genTokensV').textContent = e.target.value;
+  $('genTemp').oninput = e => $('genTempV').textContent = (+e.target.value).toFixed(2);
+  $('genBtn').onclick = async () => {
+    const b = $('genBtn'); b.disabled = true; $('genMeta').textContent = 'generating…';
+    try {
+      const q = new URLSearchParams({ prompt: $('prompt').value, tokens: $('genTokens').value, temperature: $('genTemp').value });
+      const r = await (await fetch('/api/generate?' + q)).json();
+      if (r.error) throw new Error(r.error);
+      $('genOut').textContent = r.text; $('genMeta').textContent = r.seconds.toFixed(2) + 's';
+    } catch (e) { $('genOut').textContent = 'error: ' + e.message; $('genMeta').textContent = ''; }
+    b.disabled = false;
+  };
+
+  // ---------------------------------------------------------- attention
+  $('attnBtn').onclick = async () => {
+    const r = await (await fetch('/api/attention?' + new URLSearchParams({ prompt: $('attnPrompt').value }))).json();
+    if (r.error) { $('attnTokens').textContent = 'error: ' + r.error; return; }
+    attnData = r;
+    const L = $('attnLayer'), H = $('attnHead');
+    L.innerHTML = r.layers.map((_, i) => `<option value="${i}">layer ${i}</option>`).join('');
+    H.innerHTML = r.layers[0].map((_, i) => `<option value="${i}">head ${i}</option>`).join('') + '<option value="avg">mean of heads</option>';
+    drawAttention();
+  };
+  $('attnLayer').onchange = drawAttention; $('attnHead').onchange = drawAttention;
+  function drawAttention() {
+    if (!attnData) return;
+    const layer = attnData.layers[+$('attnLayer').value];
+    const hv = $('attnHead').value;
+    let A;
+    if (hv === 'avg') { A = layer[0].map((row, i) => row.map((_, j) => layer.reduce((acc, h) => acc + h[i][j], 0) / layer.length)); }
+    else A = layer[+hv];
+    const T = A.length, cell = Math.max(6, Math.min(28, Math.floor(600 / T)));
+    const c = $('attnCanvas'); c.width = T * cell; c.height = T * cell;
+    const ctx = c.getContext('2d');
+    for (let i = 0; i < T; i++) for (let j = 0; j < T; j++) {
+      const v = A[i][j];
+      ctx.fillStyle = `rgba(124,156,255,${Math.min(1, v) * 0.95 + 0.03})`;
+      ctx.fillRect(j * cell, i * cell, cell - 1, cell - 1);
+    }
+    $('attnTokens').innerHTML = attnData.tokens.map((t, i) => `<div><span class="muted">${i}</span> ${esc(JSON.stringify(t))}</div>`).join('');
+  }
+  window.addEventListener('resize', () => fetch('/api/state').then(r => r.json()).then(render));
+  poll();
+})();
+</script>
+</body>
+</html>

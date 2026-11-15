@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Checkpoints and data
+checkpoints/
+*.npz
+data/*.txt
+!data/README.md
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
