@@ -90,6 +90,10 @@ def _as_tensor(x: TensorLike) -> "Tensor":
     return x if isinstance(x, Tensor) else Tensor(x)
 
 
+def _noop() -> None:
+    return None
+
+
 def _blas_ready(a: np.ndarray) -> np.ndarray:
     """Return ``a`` in a layout NumPy can hand to BLAS.
 
@@ -129,7 +133,7 @@ def _matmul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 class Tensor:
     """A multi-dimensional array that supports automatic differentiation."""
 
-    __slots__ = ("data", "grad", "requires_grad", "_backward", "_prev", "_op", "name")
+    __slots__ = ("data", "grad", "requires_grad", "_backward", "_prev", "_op", "name", "__weakref__")
     __array_priority__ = 1000  # make NumPy defer to our __radd__ etc.
 
     def __init__(
@@ -155,7 +159,7 @@ class Tensor:
         self.data: np.ndarray = arr
         self.grad: Optional[np.ndarray] = None
         self.requires_grad: bool = bool(requires_grad)
-        self._backward: Callable[[], None] = lambda: None
+        self._backward: Callable[[], None] = _noop
         self._prev: Tuple["Tensor", ...] = tuple(_children) if _GradMode.enabled else ()
         self._op: str = _op if _GradMode.enabled else ""
         self.name: Optional[str] = None
@@ -675,9 +679,19 @@ class Tensor:
 
         for node in reversed(topo):
             node._backward()
-            # Free graph references of intermediates to save memory.
-            if node is not self and node._prev:
-                node._backward = lambda: None
+
+        # Tear the graph down immediately. Each node's _backward closure refers back
+        # to the node itself (a reference cycle), so without this the whole graph -
+        # every activation of the forward pass - would linger until Python's cyclic
+        # GC happens to run. NumPy buffers do not count toward GC thresholds, so that
+        # can take many training steps and exhaust memory. Like PyTorch, we also drop
+        # the gradients of non-leaf intermediates; only leaves keep .grad.
+        for node in topo:
+            if node._prev:
+                node._backward = _noop
+                node._prev = ()
+                if node is not self:
+                    node.grad = None
 
     # ------------------------------------------------------------------ #
     # Graph introspection (used by the dashboard / debugging)

@@ -107,6 +107,26 @@ def test_deep_graph_does_not_overflow_recursion():
     assert np.isfinite(x.grad).all()
 
 
+def test_backward_frees_graph_without_cyclic_gc():
+    """Regression: activations must be released as soon as the loss is dropped (no GC needed)."""
+    import gc
+    import weakref
+
+    gc.disable()
+    try:
+        x = Tensor(np.random.randn(64, 64), requires_grad=True)
+        h = (x @ x).tanh()
+        loss = (h * h).sum()
+        ref = weakref.ref(h)
+        loss.backward()
+        assert x.grad is not None
+        assert loss._prev == () and ref() is not None  # still referenced by local `h`
+        del h, loss
+        assert ref() is None, "intermediate kept alive by a reference cycle"
+    finally:
+        gc.enable()
+
+
 def test_graph_export():
     x = Tensor([1.0], requires_grad=True)
     y = (x * 2 + 1).sum()
