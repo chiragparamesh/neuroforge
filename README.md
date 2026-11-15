@@ -38,7 +38,7 @@ opt.step()               # AdamW with decoupled weight decay
 | **GPT learns to add 3-digit numbers** from raw text like `482+017=0499;` | `python examples/train_arithmetic_gpt.py --dashboard` | **99.6 %** held-out accuracy, 102 K params, 2 500 steps |
 | **CNN classifies shapes** (circle / square / triangle) | `python examples/train_cnn_shapes.py` | **100 %** test accuracy in 4 epochs |
 | **MLP on the 3-arm spiral** | `python examples/train_mlp_spiral.py` | **97.8 %** accuracy + decision boundary |
-| **Character / BPE GPT on any text** (e.g. Shakespeare) | `python examples/train_text_gpt.py --data data/shakespeare.txt --dashboard` | coherent samples after a few thousand steps |
+| **Character-level GPT on Tiny Shakespeare** (810 K params) | `python examples/train_text_gpt.py --data data/shakespeare.txt --dashboard` | val loss 3.8 → **1.85** in 36 min on a laptop CPU; learns play format and English-like words |
 
 <p align="center">
   <img src="docs/arithmetic_accuracy.png" width="48%" alt="GPT addition accuracy over training (grokking curve)">
@@ -46,6 +46,23 @@ opt.step()               # AdamW with decoupled weight decay
 </p>
 
 The addition task is a nice one: the model sees nothing but strings, and accuracy sits near zero for ~800 steps before it suddenly *groks* place value and carrying, climbing to ~100 % within the next few hundred steps.
+
+### Shakespeare, character by character
+
+A 4-layer, 128-d GPT (810 K parameters) trained for 2 500 steps (batch 16, context 64) on the 1.1 MB Tiny Shakespeare corpus, entirely in NumPy on a 6 GB laptop with no GPU. Validation loss fell from 3.8 (uniform over 65 characters is 4.17) to **1.85** in 36 minutes. Sampled with `examples/sample.py --prompt "ROMEO:" --temperature 0.7`:
+
+```
+ROMEO:
+I sail are for the with a reace on the the will,
+Hen my so, and the purny love dain.
+
+LEY MERRCUCE:
+O so for you a thy all not the send, were be the one
+Bear to he und a may say and pater and the the you
+the dight a not me and he doul for your may her.
+```
+
+Half an hour of CPU is enough for the model to discover the structure of a play (speaker names in capitals followed by a colon, line breaks, punctuation) and the statistics of English spelling, but not yet grammar. The curve is still falling at step 2 500; the same script with `--steps 5000 --batch 32 --n_layer 6` reaches noticeably more coherent text if you have the time (or a faster machine).
 
 ### Live dashboard
 
